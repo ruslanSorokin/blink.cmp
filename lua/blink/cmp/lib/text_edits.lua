@@ -1,7 +1,5 @@
 local config = require('blink.cmp.config')
 local context = require('blink.cmp.completion.trigger.context')
-local feedkeys = require('blink.cmp.lib.feedkeys.feedkeys')
-local async = require('blink.cmp.lib.async')
 
 local text_edits = {}
 
@@ -9,56 +7,49 @@ local text_edits = {}
 --- @async
 --- @param additional_text_edits lsp.TextEdit[] # additional text edits that can e.g. add import statements.
 --- @param edit lsp.TextEdit # the main text edit (at the cursor). Can be repeated.
---- @return blink.cmp.Task
---- @nodiscard
 function text_edits.apply(additional_text_edits, edit)
-  return async.task.new(function(resolve)
-    local mode = context.get_mode()
-    if mode == 'default' then
-      -- Fill the `.` register so that dot-repeat works. This also changes the
-      -- text in the buffer - currently there is no way to do this in Neovim
-      -- (only adding new text is supported, but we also want to replace the
-      -- current word). See the tracking issue for this feature at
-      -- https://github.com/neovim/neovim/issues/19806#issuecomment-2365146298
+  local mode = context.get_mode()
+  if mode == 'default' then
+    vim.lsp.util.apply_text_edits(additional_text_edits, vim.api.nvim_get_current_buf(), 'utf-8')
 
-      vim.lsp.util.apply_text_edits(additional_text_edits, vim.api.nvim_get_current_buf(), 'utf-8')
+    -- Fill the `.` register so that dot-repeat works. This also changes the
+    -- text in the buffer - currently there is no way to do this in Neovim
+    -- (only adding new text is supported, but we also want to replace the
+    -- current word). See the tracking issue for this feature at
+    -- https://github.com/neovim/neovim/issues/19806#issuecomment-2365146298
+    local row = vim.api.nvim_win_get_cursor(0)[1]
+    local old_line = vim.api.nvim_get_current_line()
 
-      local original_cursor = context.get_cursor()
-      local kwstart, kwend = edit.range.start.character, edit.range['end'].character
-      local repeat_keys = {}
-      local original_line = context.get_line()
-      table.insert(repeat_keys, feedkeys.backspace(kwend - kwstart))
-      table.insert(repeat_keys, edit.newText)
+    -- emulate builtin completion (dot repeat)
+    local saved_completeopt = vim.opt.completeopt
+    local saved_shortmess = vim.o.shortmess
+    vim.opt.completeopt = ''
+    if not vim.o.shortmess:match('c') then vim.o.shortmess = vim.o.shortmess .. 'c' end
+    vim.fn.complete(edit.range.start.character + 1, { edit.newText })
+    vim.opt.completeopt = saved_completeopt
+    vim.o.shortmess = saved_shortmess
 
-      local repeat_str = table.concat(repeat_keys, '')
+    -- exit completion mode
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<C-x><C-z>', true, true, true), 'in', false)
 
-      -- setting the undolevels forces neovim to create an undo point
-      vim.o.undolevels = vim.o.undolevels
-      feedkeys.call_async(repeat_str, 'in'):map(function()
-        local row = original_cursor[1]
-        local end_col = kwstart + #edit.newText
-        local old_text = original_line:sub(1, end_col)
-        vim.api.nvim_buf_set_text(context.bufnr, row, 0, row, end_col, { old_text })
-        -- undo the changes to the buffer (but keep them in the `.` register for
-        -- repeating)
-        vim.lsp.util.apply_text_edits({ edit }, vim.api.nvim_get_current_buf(), 'utf-8')
-        resolve()
-      end)
+    -- restore old content
+    vim.api.nvim_buf_set_lines(0, row - 1, row, false, { old_line })
 
-      return
-    end
+    -- apply the text edit as per usual
+    vim.lsp.util.apply_text_edits({ edit }, vim.api.nvim_get_current_buf(), 'utf-8')
 
-    assert(mode == 'cmdline', 'Unsupported mode for text edits: ' .. mode)
+    return
+  end
 
-    local line = context.get_line()
-    local edited_line = line:sub(1, edit.range.start.character)
-      .. edit.newText
-      .. line:sub(edit.range['end'].character + 1)
-    -- FIXME: for some reason, we have to set the cursor here, instead of later,
-    -- because this will override the cursor position set later
-    vim.fn.setcmdline(edited_line, edit.range.start.character + #edit.newText + 1)
-    resolve()
-  end)
+  assert(mode == 'cmdline', 'Unsupported mode for text edits: ' .. mode)
+
+  local line = context.get_line()
+  local edited_line = line:sub(1, edit.range.start.character)
+    .. edit.newText
+    .. line:sub(edit.range['end'].character + 1)
+  -- FIXME: for some reason, we have to set the cursor here, instead of later,
+  -- because this will override the cursor position set later
+  vim.fn.setcmdline(edited_line, edit.range.start.character + #edit.newText + 1)
 end
 
 ------- Undo -------
