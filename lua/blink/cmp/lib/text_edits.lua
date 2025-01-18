@@ -6,8 +6,8 @@ local text_edits = {}
 --- Applies one or more text edits to the current buffer, assuming utf-8 encoding
 --- @async
 --- @param additional_text_edits lsp.TextEdit[] # additional text edits that can e.g. add import statements.
---- @param edit lsp.TextEdit # the main text edit (at the cursor). Can be repeated.
-function text_edits.apply(additional_text_edits, edit)
+--- @param text_edit lsp.TextEdit # the main text edit (at the cursor). Can be repeated.
+function text_edits.apply(additional_text_edits, text_edit)
   local mode = context.get_mode()
   if mode == 'default' then
     vim.lsp.util.apply_text_edits(additional_text_edits, vim.api.nvim_get_current_buf(), 'utf-8')
@@ -25,7 +25,7 @@ function text_edits.apply(additional_text_edits, edit)
     local saved_shortmess = vim.o.shortmess
     vim.opt.completeopt = ''
     if not vim.o.shortmess:match('c') then vim.o.shortmess = vim.o.shortmess .. 'c' end
-    vim.fn.complete(edit.range.start.character + 1, { edit.newText })
+    vim.fn.complete(text_edit.range.start.character + 1, { text_edit.newText })
     vim.opt.completeopt = saved_completeopt
     vim.o.shortmess = saved_shortmess
 
@@ -36,20 +36,21 @@ function text_edits.apply(additional_text_edits, edit)
     vim.api.nvim_buf_set_lines(0, row - 1, row, false, { old_line })
 
     -- apply the text edit as per usual
-    vim.lsp.util.apply_text_edits({ edit }, vim.api.nvim_get_current_buf(), 'utf-8')
+    vim.lsp.util.apply_text_edits({ text_edit }, vim.api.nvim_get_current_buf(), 'utf-8')
 
     return
   end
 
+  assert(#additional_text_edits == 0, 'Cmdline mode does not support additional text edits. Contributions welcome!')
   assert(mode == 'cmdline', 'Unsupported mode for text edits: ' .. mode)
 
   local line = context.get_line()
-  local edited_line = line:sub(1, edit.range.start.character)
-    .. edit.newText
-    .. line:sub(edit.range['end'].character + 1)
+  local edited_line = line:sub(1, text_edit.range.start.character)
+    .. text_edit.newText
+    .. line:sub(text_edit.range['end'].character + 1)
   -- FIXME: for some reason, we have to set the cursor here, instead of later,
   -- because this will override the cursor position set later
-  vim.fn.setcmdline(edited_line, edit.range.start.character + #edit.newText + 1)
+  vim.fn.setcmdline(edited_line, text_edit.range.start.character + #text_edit.newText + 1)
 end
 
 ------- Undo -------

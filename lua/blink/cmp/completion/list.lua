@@ -240,8 +240,7 @@ function list.accept(opts)
   if item == nil then return false end
 
   list.undo_preview()
-  local accept = require('blink.cmp.completion.accept')
-  local _ = accept(list.context, item, function()
+  require('blink.cmp.completion.accept')(list.context, item, function()
     list.accept_emitter:emit({ item = item, context = list.context })
     if opts.callback then opts.callback() end
   end)
