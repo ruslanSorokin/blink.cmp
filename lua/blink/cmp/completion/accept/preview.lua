@@ -17,7 +17,7 @@ local function preview(item)
     text_edit.range.start.character + #text_edit.newText,
   }
 
-  text_edits_lib.apply({}, text_edit)
+  text_edits_lib.apply(text_edit)
 
   local original_cursor = vim.api.nvim_win_get_cursor(0)
   local cursor_moved = false

@@ -4,13 +4,12 @@ local context = require('blink.cmp.completion.trigger.context')
 local text_edits = {}
 
 --- Applies one or more text edits to the current buffer, assuming utf-8 encoding
---- @async
---- @param additional_text_edits lsp.TextEdit[] # additional text edits that can e.g. add import statements.
 --- @param text_edit lsp.TextEdit # the main text edit (at the cursor). Can be repeated.
-function text_edits.apply(additional_text_edits, text_edit)
+--- @param additional_text_edits? lsp.TextEdit[] # additional text edits that can e.g. add import statements.
+function text_edits.apply(text_edit, additional_text_edits)
   local mode = context.get_mode()
   if mode == 'default' then
-    vim.lsp.util.apply_text_edits(additional_text_edits, vim.api.nvim_get_current_buf(), 'utf-8')
+    vim.lsp.util.apply_text_edits(additional_text_edits or {}, vim.api.nvim_get_current_buf(), 'utf-8')
 
     -- Fill the `.` register so that dot-repeat works. This also changes the
     -- text in the buffer - currently there is no way to do this in Neovim
