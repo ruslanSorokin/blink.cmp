@@ -18,7 +18,6 @@ function sort.sort(list, funcs)
 end
 
 function sort.exact(a, b)
-  if a.sortText == nil or b.sortText == nil then return end
   if a.exact ~= b.exact then return a.exact end
 end
 
